@@ -1,0 +1,103 @@
+# Customise this file, documentation can be found here:
+# https://docs.fastlane.tools/actions/
+# All available actions: https://docs.fastlane.tools/actions
+# can also be listed using the `fastlane actions` command
+
+# Change the syntax highlighting to Ruby
+# All lines starting with a # are ignored when running `fastlane`
+
+# If you want to automatically update fastlane if a new version is available:
+# update_fastlane
+
+# This is the minimum version number required.
+# Update this, if you use features of a newer version
+fastlane_version "2.62.1"
+
+default_platform :ios
+
+platform :ios do
+  before_all do
+    # ENV["SLACK_URL"] = "https://hooks.slack.com/services/..."
+    cocoapods
+    # carthage
+  end
+
+  desc "Runs all the tests"
+  lane :test do
+    scan
+  end
+#add for PR trigger
+  desc "Submit a new Beta Build to Apple TestFlight"
+  desc "This will also make sure the profile is up to date"
+  lane :beta do
+    match(type: "appstore", readonly: true, app_identifier:"com.rocketeerfly.app.secondbrain") # more information: https://codesigning.guide
+    gym(scheme: "SecondBrain") # Build your app - more options available
+
+    desc "Auto-increment build number and then commit to repo."
+    build_number = increment_build_number
+    commit_version_bump(
+      message: "[skip ci] Version Bump to #{build_number}",# create a commit with a custom message
+      xcodeproj: $BITRISE_PROJECT_PATH, # optional, if you have multiple Xcode project files, you must specify your main project here
+      force: true
+    )
+    push_to_git_remote(
+      remote: "origin",         # optional, default: "origin"
+      local_branch: "HEAD",  # optional, aliased by "branch", default: "master"
+      remote_branch: "master", # optional, default is set to local_branch
+      force: true,    # optional, default: false
+      tags: true     # optional, default: true
+    )
+
+    pilot(
+    	team_id: "117849501", 
+    	changelog:"add x feature",
+    	beta_app_description: "This is a preview of our new app...",
+      	beta_app_feedback_email: "thi@mail.com"
+    )
+    clean_build_artifacts
+    # sh "your_script.sh"
+    # You can also use other beta testing services here (run `fastlane actions`)
+  end
+
+  desc "Build only"
+  lane :develop do
+    match(type: "development", readonly: true, app_identifier:"com.rocketeerfly.app.secondbrain") # more information: https://codesigning.guide
+    gym(scheme: "SecondBrain") # Build your app - more options available
+    clean_build_artifacts
+    # sh "your_script.sh"
+    # You can also use other beta testing services here (run `fastlane actions`)
+  end
+
+  desc "Deploy a new version to the App Store"
+  lane :appstore do
+    match(type: "appstore",  app_identifier:"com.rocketeerfly.app.secondbrain")
+    # snapshot
+    gym(scheme: "SecondBrain") # Build your app - more options available
+    deliver(force: true)
+    # frameit
+  end
+
+  # You can define as many lanes as you want
+
+  after_all do |lane|
+    # This block is called, only if the executed lane was successful
+
+    # slack(
+    #   message: "Successfully deployed new App Update."
+    # )
+  end
+
+  error do |lane, exception|
+    # slack(
+    #   message: exception.message,
+    #   success: false
+    # )
+  end
+end
+
+
+# More information about multiple platforms in fastlane: https://github.com/fastlane/fastlane/blob/master/fastlane/docs/Platforms.md
+# All available actions: https://docs.fastlane.tools/actions
+
+# fastlane reports which actions are used. No personal data is recorded. 
+# Learn more at https://github.com/fastlane/fastlane#metrics
